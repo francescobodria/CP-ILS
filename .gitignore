@@ -127,3 +127,26 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+#Directories
+models/
+data/MNIST/
+.data/
+data/diva
+ric/
+blackboxes/
+results/
+
+#Files
+.gitignore
+.DS_Store
+results_proto_adult.pickle
+results_proto_compas.pickle
+results_proto_diva.pickle
+results_proto_german.pickle
+results_manual.xlsx
+result_analysis.ipynb
+MNIST.ipynb
+FICO_dataset_analysis.py
+diva_dataset.ipynb
+proto_diva.py
