@@ -20,6 +20,7 @@ from sklearn.model_selection import train_test_split
 from collections import defaultdict
 
 def load_tabular_data(name):
+    from sklearn.model_selection import train_test_split
     if name == 'adult':
         df = pd.read_csv('./data/adult_clear.csv')
         df = df[df["workclass"] != "?"]
@@ -68,10 +69,7 @@ def load_tabular_data(name):
         X = df.copy()
         ord_enc = OrdinalEncoder()
         X.iloc[:,2:] = ord_enc.fit_transform(X.values[:,2:]).astype(int)
-        print('ord_enc')
-        print(ord_enc.categories_)
         std = MinMaxScaler(feature_range=(-1,1))
-        print('std')
         X.iloc[:,:2] = std.fit_transform(X.values[:,:2])
         print(std.inverse_transform(np.array([[-0.15068493,0],[-0.383117,0],[-0.315358, -0.263194],[-0.150685, -0.091183],[-0.337704,-0.243003],[-0.15068493,0.08495728]])))
         X.drop(['income'], axis=1, inplace=True)
