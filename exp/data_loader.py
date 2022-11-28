@@ -71,7 +71,6 @@ def load_tabular_data(name):
         X.iloc[:,2:] = ord_enc.fit_transform(X.values[:,2:]).astype(int)
         std = MinMaxScaler(feature_range=(-1,1))
         X.iloc[:,:2] = std.fit_transform(X.values[:,:2])
-        print(std.inverse_transform(np.array([[-0.15068493,0],[-0.383117,0],[-0.315358, -0.263194],[-0.150685, -0.091183],[-0.337704,-0.243003],[-0.15068493,0.08495728]])))
         X.drop(['income'], axis=1, inplace=True)
         y = df["income"].apply(lambda x: ">50K" in x).astype(int)
 

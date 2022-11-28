@@ -136,6 +136,8 @@ data/diva
 ric/
 blackboxes/
 results/
+lightning_logs/
+NN_logs/
 
 #Files
 .gitignore
