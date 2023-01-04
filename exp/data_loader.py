@@ -10,6 +10,7 @@ from tqdm import tqdm
 import time
 import matplotlib.pyplot as plt
 import os
+import re
 
 rnd = 42
 np.random.seed(rnd)
@@ -172,6 +173,10 @@ def load_tabular_data(name):
         df = df.drop(list(df.columns[[2,3,5,6]]), axis=1, inplace=False)
         y = df['default'].astype(int)
         df.drop(['default'], axis=1, inplace=True)
+
+        df.columns = [re.sub(r"<= ... <", "-", df.columns[i]) for i in range(len(df.columns))]
+        df.columns = [re.sub(r"<", "-", df.columns[i]) for i in range(len(df.columns))]
+        df.columns = [re.sub(r">", "+", df.columns[i]) for i in range(len(df.columns))]
 
         X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.2, stratify=y, random_state=rnd)
         return X_train, X_test, y_train, y_test, df
