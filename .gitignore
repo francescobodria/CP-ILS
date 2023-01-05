@@ -132,6 +132,7 @@ dmypy.json
 models/
 data/MNIST/
 .data/
+.vscode/
 data/diva
 ric/
 blackboxes/
