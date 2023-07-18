@@ -9,8 +9,9 @@ import time
 import warnings
 warnings.filterwarnings("ignore")
 from scipy.spatial.distance import hamming, euclidean, cdist
-
+from sklearn.cluster import KMeans
 import torch
+
 random_seed = 42
 torch.backends.cudnn.enabled = False
 torch.manual_seed(random_seed)
@@ -184,97 +185,6 @@ for black_box in ['xgb','rf','svc','nn']:
 
         print(f'model:{black_box} n:{n}')
 
-        # Proto Select
-        from alibi.prototypes import ProtoSelect
-        from alibi.utils.kernel import EuclideanDistance
-        summariser = ProtoSelect(kernel_distance=EuclideanDistance(), eps=5)
-        summariser = summariser.fit(X=X_train.values, y=y_train_bb)
-        summary = summariser.summarise(num_prototypes=n)
-        proto_select = pd.DataFrame(summary.prototypes, columns=X_train.columns)
-        num_proto = len(proto_select)
-        proto_pred = predict(proto_select)
-        from scipy.spatial.distance import cdist
-        knn_1 = np.argmin(cdist(proto_select.values, X_test),axis=0)
-        d = {}
-        for i in range(num_proto):
-            d[i]=proto_pred[i]
-        knn_1 = [d[x] for x in knn_1]
-        
-        results[black_box]['proto_select']['n_'+str(n)] = {} 
-        results[black_box]['proto_select']['n_'+str(n)]['proto'] = proto_select
-        results[black_box]['proto_select']['n_'+str(n)]['perc_pos'] = np.mean(proto_pred)
-        results[black_box]['proto_select']['n_'+str(n)]['acc_1knn'] = accuracy_score(knn_1,y_test_bb)
-        results[black_box]['proto_select']['n_'+str(n)]['avg_dist'] = np.mean(cdist(proto_select.values,proto_select.values))
-
-        # ProtoDASH
-        from protodash import ProtodashExplainer, get_Gaussian_Data
-        explainer = ProtodashExplainer()
-        (W, S, _) = explainer.explain(X_train.values, X_train.values, m=n) 
-        proto_dash = X_train.iloc[S, :].copy()
-        num_proto = len(proto_dash)
-        proto_pred = predict(proto_dash)
-        from scipy.spatial.distance import cdist
-        knn_1 = np.argmin(cdist(proto_dash.values, X_test),axis=0)
-        d = {}
-        for i in range(num_proto):
-            d[i]=proto_pred[i]
-        knn_1 = [d[x] for x in knn_1]
-
-        results[black_box]['proto_dash']['n_'+str(n)] = {} 
-        results[black_box]['proto_dash']['n_'+str(n)]['proto'] = proto_dash
-        results[black_box]['proto_dash']['n_'+str(n)]['perc_pos'] = np.mean(proto_pred)
-        results[black_box]['proto_dash']['n_'+str(n)]['acc_1knn'] = accuracy_score(knn_1,y_test_bb)
-        results[black_box]['proto_dash']['n_'+str(n)]['avg_dist'] = np.mean(cdist(proto_dash.values,proto_dash.values))
-
-        # MMD Critic
-        from mmd.mmd_critic import Dataset, select_prototypes, select_criticisms
-        gamma = 0.026
-        num_prototypes = n
-        num_criticisms = n
-        kernel_type = 'local'
-        # kernel_type = 'global'
-        # regularizer = None
-        regularizer = 'logdet'
-        # regularizer = 'iterative'
-        d_train = Dataset(torch.tensor(X_train.values, dtype=torch.float), torch.tensor(y_train_bb,dtype=torch.long))
-        if kernel_type == 'global':
-            d_train.compute_rbf_kernel(gamma)
-        elif kernel_type == 'local':
-            d_train.compute_local_rbf_kernel(gamma)
-        else:
-            raise KeyError('kernel_type must be either "global" or "local"')
-        prototype_indices = select_prototypes(d_train.K, num_prototypes)
-        prototypes = d_train.X[prototype_indices]
-        prototype_labels = d_train.y[prototype_indices]
-        sorted_by_y_indices = prototype_labels.argsort()
-        prototypes_sorted = prototypes[sorted_by_y_indices]
-        prototype_labels = prototype_labels[sorted_by_y_indices]
-        # Criticisms
-        criticism_indices = select_criticisms(d_train.K, prototype_indices, num_criticisms, regularizer)
-        criticisms = d_train.X[criticism_indices]
-        criticism_labels = d_train.y[criticism_indices]
-        sorted_by_y_indices = criticism_labels.argsort()
-        criticisms_sorted = criticisms[sorted_by_y_indices]
-        criticism_labels = criticism_labels[sorted_by_y_indices]
-        proto_mmd = X_train.iloc[prototype_indices.sort()[0].tolist()]
-        crit_mmd = X_train.iloc[criticism_indices.sort()[0].tolist()]
-        proto_pred = predict(proto_mmd)
-
-        num_proto = len(proto_mmd)
-        from scipy.spatial.distance import cdist
-        knn_1 = np.argmin(cdist(proto_mmd.values, X_test),axis=0)
-        d = {}
-        for i in range(num_proto):
-            d[i]=proto_pred[i]
-        knn_1 = [d[x] for x in knn_1]
-
-        results[black_box]['proto_mmd']['n_'+str(n)] = {} 
-        results[black_box]['proto_mmd']['n_'+str(n)]['proto'] = proto_mmd
-        results[black_box]['proto_mmd']['n_'+str(n)]['crit'] = crit_mmd
-        results[black_box]['proto_mmd']['n_'+str(n)]['perc_pos'] = np.mean(proto_pred)
-        results[black_box]['proto_mmd']['n_'+str(n)]['acc_1knn'] = accuracy_score(knn_1,y_test_bb)
-        results[black_box]['proto_mmd']['n_'+str(n)]['avg_dist'] = np.mean(cdist(proto_mmd.values,proto_mmd.values))
-
         # --- Latent ---
         X_train_latent = np.hstack((X_train,y_train_pred.reshape(-1,1)))
         X_test_latent = np.hstack((X_test,y_test_pred.reshape(-1,1)))
@@ -289,16 +199,7 @@ for black_box in ['xgb','rf','svc','nn']:
         max_epochs = 1000
         early_stopping = 3
         learning_rate = 1e-3
-        if dataset_name == 'adult':
-            idx_cat = [2,3,4,5,6]
-        elif dataset_name == 'fico':
-            idx_cat = None
-        elif dataset_name == 'german':
-            idx_cat = np.arange(3,71,1).tolist()
-        elif dataset_name == 'compas':
-            idx_cat = list(range(13,33,1))
-        elif dataset_name == 'diva':
-            idx_cat = list(range(58))
+        idx_cat = list(range(2,17))
         similarity_KLD = torch.nn.KLDivLoss(reduction='batchmean')
         def compute_similarity_Z(Z, sigma):
             D = 1 - F.cosine_similarity(Z[:, None, :], Z[None, :, :], dim=-1)
@@ -345,12 +246,10 @@ for black_box in ['xgb','rf','svc','nn']:
             Z_test = model(torch.tensor(X_test_latent).float()).cpu().detach().numpy()
         
         # Latent Clustering
-        from sklearn.cluster import KMeans
         Z_train_0 = Z_train[y_train_bb==0]
         Z_train_1 = Z_train[y_train_bb==1]
-
     
-        clustering_0 = KMeans(n_clusters=int(n//(1/(y_train_bb==0/len(y_train_bb)))),assign_labels='discretize').fit(Z_train_0)
+        clustering_0 = Kmeans(n_clusters=int(n//(1/(y_train_bb==0/len(y_train_bb)))),assign_labels='discretize').fit(Z_train_0)
         clustering_1 = KMeans(n_clusters=int(n-n//(1/(y_train_bb==0/len(y_train_bb)))),assign_labels='discretize').fit(Z_train_1)
         centers = np.stack((clustering_0,clustering_1))
 
